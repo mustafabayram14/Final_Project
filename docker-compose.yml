@@ -37,9 +37,31 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      minio:
+        condition: service_started
     networks:
       - app-network
-    command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://user:password@postgres/myappdb
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: your_access_key
+      MINIO_SECRET_KEY: your_secret_key
+      MINIO_BUCKET_NAME: profile-pictures
+      MINIO_SECURE: false
+    command: ["sh", "-c", "alembic upgrade head && python setup_minio.py && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
+
+  minio:
+    image: minio/minio:latest
+    command: server /data
+    ports:
+      - "9000:9000"
+    environment:
+      MINIO_ROOT_USER: your_access_key
+      MINIO_ROOT_PASSWORD: your_secret_key
+    volumes:
+      - minio-data:/data
+    networks:
+      - app-network
 
   nginx:
     image: nginx:latest
@@ -55,6 +77,8 @@ services:
 volumes:
   postgres-data:
   pgadmin-data:
+  minio-data:
 
 networks:
   app-network:
+  
