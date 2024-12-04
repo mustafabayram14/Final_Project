@@ -26,12 +26,18 @@ COPY ./requirements.txt /myapp/requirements.txt
 RUN pip install --upgrade pip \
     && pip install -r requirements.txt
 
+# Copy the rest of the application's code to the container
+COPY . .
+
+# Add a script to ensure Minio bucket setup before the application starts
+COPY ./setup_minio.py /myapp/setup_minio.py
+
+# Ensure Minio setup script is executable (run as root)
+RUN chmod +x /myapp/setup_minio.py
+
 # Add a non-root user and switch to it
 RUN useradd -m myuser
 USER myuser
-
-# Copy the rest of the application's code to the container
-COPY --chown=myuser:myuser . /myapp
 
 # Inform Docker that the container listens on the specified port
 EXPOSE 8000
@@ -42,10 +48,6 @@ ENV MINIO_ENDPOINT=localhost:9000 \
     MINIO_SECRET_KEY=your_secret_key \
     MINIO_BUCKET_NAME=profile-pictures \
     MINIO_SECURE=false
-
-# Add a script to ensure Minio bucket setup before the application starts
-COPY ./setup_minio.py /myapp/setup_minio.py
-RUN chmod +x /myapp/setup_minio.py
 
 # Run the setup script and then start the application
 CMD ["sh", "-c", "python setup_minio.py && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
