@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.10.12] # Define Python versions here
+        python-version: [3.10.12]
     services:
       postgres:
         image: postgres:latest
@@ -24,6 +24,16 @@ jobs:
         ports:
           - 5432:5432
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+
+      minio:
+        image: minio/minio:latest
+        env:
+          MINIO_ROOT_USER: your_access_key
+          MINIO_ROOT_PASSWORD: your_secret_key
+        ports:
+          - 9000:9000
+        options: --entrypoint ""
+
     steps:
       - uses: actions/checkout@v4
       
@@ -44,10 +54,21 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          
+
+      - name: Setup Minio Bucket
+        run: |
+          python -c "import boto3; client = boto3.client('s3', endpoint_url='http://localhost:9000', aws_access_key_id='your_access_key', aws_secret_access_key='your_secret_key'); bucket_name = 'profile-pictures'; \
+          try: client.head_bucket(Bucket=bucket_name); print(f'Bucket {bucket_name} already exists.'); \
+          except client.exceptions.NoSuchBucket: print(f'Creating bucket {bucket_name}...'); client.create_bucket(Bucket=bucket_name)"
+
       - name: Run tests with Pytest
         env:
-          DATABASE_URL: postgresql+asyncpg://user:password@localhost:5432/myappdb  # Configure the DATABASE_URL environment variable for tests
+          DATABASE_URL: postgresql+asyncpg://user:password@localhost:5432/myappdb
+          MINIO_ENDPOINT: http://localhost:9000
+          MINIO_ACCESS_KEY: your_access_key
+          MINIO_SECRET_KEY: your_secret_key
+          MINIO_BUCKET_NAME: profile-pictures
+          MINIO_SECURE: false
         run: pytest
 
   build-and-push-docker:
@@ -70,8 +91,8 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           push: true
-          tags: kaw393939/wis_club_api:${{ github.sha }} # Uses the Git SHA for tagging
-          platforms: linux/amd64,linux/arm64 # Multi-platform support
+          tags: kaw393939/wis_club_api:${{ github.sha }}
+          platforms: linux/amd64,linux/arm64
           cache-from: type=registry,ref=kaw393939/wis_club_api:cache
           cache-to: type=inline,mode=max
           
@@ -80,6 +101,6 @@ jobs:
         with:
           image-ref: 'kaw393939/wis_club_api:${{ github.sha }}'
           format: 'table'
-          exit-code: '1' # Fail the job if vulnerabilities are found
+          exit-code: '1'
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
