@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     smtp_username: str = Field(default='your-mailtrap-username', description="Username for SMTP server")
     smtp_password: str = Field(default='your-mailtrap-password', description="Password for SMTP server")
 
+ # Minio configuration
+    minio_endpoint: str = Field(default='localhost:9000', description="Minio endpoint URL")
+    minio_access_key: str = Field(default='your_access_key', description="Minio access key")
+    minio_secret_key: str = Field(default='your_secret_key', description="Minio secret key")
+    minio_bucket_name: str = Field(default='profile-pictures', description="Bucket name for storing profile pictures")
+    minio_secure: bool = Field(default=False, description="Use HTTPS for Minio connection")
 
     class Config:
         # If your .env file is not in the root directory, adjust the path accordingly.
