@@ -1,10 +1,8 @@
-# Use an official lightweight Python image.
-# 3.12-slim variant is chosen for a balance between size and utility.
+# Use an official lightweight Python image
+# Using Python 3.12-slim variant for efficiency
 FROM python:3.12-slim-bullseye as base
 
-# Set environment variables to configure Python and pip.
-# Prevents Python from buffering stdout and stderr, enables the fault handler, disables pip cache,
-# sets default pip timeout, and suppresses pip version check messages.
+# Set environment variables for Python and pip configuration
 ENV PYTHONUNBUFFERED=1 \
     PYTHONFAULTHANDLER=1 \
     PIP_NO_CACHE_DIR=true \
@@ -15,16 +13,16 @@ ENV PYTHONUNBUFFERED=1 \
 # Set the working directory inside the container
 WORKDIR /myapp
 
-# Install system dependencies
+# Install system dependencies for building Python packages and database support
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends gcc libpq-dev \
+    && apt-get install -y --no-install-recommends gcc libpq-dev curl \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy only the requirements, to cache them in Docker layer
+# Copy only the requirements file to cache pip installs
 COPY ./requirements.txt /myapp/requirements.txt
 
-# Upgrade pip and install Python dependencies from requirements file
+# Upgrade pip and install Python dependencies from the requirements file
 RUN pip install --upgrade pip \
     && pip install -r requirements.txt
 
@@ -32,11 +30,22 @@ RUN pip install --upgrade pip \
 RUN useradd -m myuser
 USER myuser
 
-# Copy the rest of your application's code with appropriate ownership
+# Copy the rest of the application's code to the container
 COPY --chown=myuser:myuser . /myapp
 
-# Inform Docker that the container listens on the specified port at runtime.
+# Inform Docker that the container listens on the specified port
 EXPOSE 8000
 
-# Use ENTRYPOINT to specify the executable when the container starts.
-# ENTRYPOINT ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# Set environment variables for Minio (for runtime configuration)
+ENV MINIO_ENDPOINT=localhost:9000 \
+    MINIO_ACCESS_KEY=your_access_key \
+    MINIO_SECRET_KEY=your_secret_key \
+    MINIO_BUCKET_NAME=profile-pictures \
+    MINIO_SECURE=false
+
+# Add a script to ensure Minio bucket setup before the application starts
+COPY ./setup_minio.py /myapp/setup_minio.py
+RUN chmod +x /myapp/setup_minio.py
+
+# Run the setup script and then start the application
+CMD ["sh", "-c", "python setup_minio.py && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
