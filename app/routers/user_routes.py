@@ -33,6 +33,11 @@ from app.services.jwt_service import create_access_token
 from app.utils.link_generation import create_user_links, generate_pagination_links
 from app.dependencies import get_settings
 from app.services.email_service import EmailService
+
+from fastapi import APIRouter, UploadFile, HTTPException, Depends
+from utils.minio_service import MinioService
+
+
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 settings = get_settings()
@@ -233,6 +238,21 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), session: Async
         return {"access_token": access_token, "token_type": "bearer"}
     raise HTTPException(status_code=401, detail="Incorrect email or password.")
 
+@router.post("/upload-profile-picture/")
+async def upload_profile_picture(file: UploadFile):
+    if file.content_type not in ["image/jpeg", "image/png"]:
+        raise HTTPException(status_code=400, detail="Unsupported file format")
+
+    minio_service = MinioService()
+    filename = f"profile_pictures/{file.filename}"
+    
+    try:
+        file_url = minio_service.upload_file(file.file, filename)
+        if file_url is None:
+            raise HTTPException(status_code=500, detail="File upload failed")
+        return {"profile_picture_url": file_url}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/verify-email/{user_id}/{token}", status_code=status.HTTP_200_OK, name="verify_email", tags=["Login and Registration"])
 async def verify_email(user_id: UUID, token: str, db: AsyncSession = Depends(get_db), email_service: EmailService = Depends(get_email_service)):
